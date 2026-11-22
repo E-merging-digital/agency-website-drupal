@@ -123,7 +123,7 @@ try {
       if ($mode === 'dry-run') {
         $result = $candidate->dryRun($payload, $issueNumber, $payloadSha);
         if (($result['verdict'] ?? NULL) === 'IDEMPOTENT') {
-          $aliasResult = $finalizer->inspect($issueNumber, $payloadSha);
+          $aliasResult = $finalizer->inspect($issueNumber, $payloadSha, ($payload['schema_version'] ?? NULL) === 2);
           if ($aliasResult['verdict'] === 'REPAIR_REQUIRED') {
             $result['verdict'] = 'REPAIR_REQUIRED';
           }
@@ -134,7 +134,7 @@ try {
       }
       else {
         $result = $candidate->apply($payload, $issueNumber, $payloadSha);
-        $aliasResult = $finalizer->apply($issueNumber, $payloadSha);
+        $aliasResult = $finalizer->apply($issueNumber, $payloadSha, ($payload['schema_version'] ?? NULL) === 2);
         if (($result['verdict'] ?? NULL) === 'IDEMPOTENT' && $aliasResult['verdict'] === 'REPAIRED') {
           $result['verdict'] = 'REPAIRED';
         }

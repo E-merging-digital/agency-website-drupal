@@ -24,6 +24,7 @@ final class AgencyEditorialPublication {
   private const BUNDLE = 'article';
   private const SOURCE_LANGCODE = 'fr';
   private const TRANSLATION_LANGCODE = 'en';
+  private const NL_LANGCODE = 'nl';
   private const TEXT_FORMAT = 'basic_html';
   private const CATEGORY_VOCABULARY = 'blog_categories';
   private const AUTHOR_UID = 1;
@@ -192,6 +193,10 @@ final class AgencyEditorialPublication {
   public function dryRun(array $payload, int $issueNumber, string $payloadSha): array {
     $this->assertRuntimeReady($issueNumber);
     $this->validatePayload($payload, $issueNumber);
+    if (($payload['schema_version'] ?? NULL) === 2
+      && $this->languageManager->getLanguage(self::NL_LANGCODE) === NULL) {
+      throw new RuntimeException('NL content language is not enabled.');
+    }
     $category = $this->resolveCategory($payload['category']);
     $duplicate = $this->classifyDuplicate($payload, $issueNumber, $payloadSha);
 
@@ -229,6 +234,7 @@ final class AgencyEditorialPublication {
         'published' => $payload['published'],
         'title_fr' => $payload['fr']['title'],
         'title_en' => $payload['en']['title'],
+        'title_nl' => ($payload['schema_version'] ?? NULL) === 2 ? $payload['nl']['title'] : NULL,
       ],
     ];
   }
@@ -287,6 +293,21 @@ final class AgencyEditorialPublication {
         ]],
       ]);
 
+      if (($payload['schema_version'] ?? NULL) === 2) {
+        $node->addTranslation(self::NL_LANGCODE, [
+          'title' => $payload['nl']['title'],
+          'status' => $payload['published'],
+          'field_short_description' => [[
+            'value' => $payload['nl']['short_description'],
+            'format' => self::TEXT_FORMAT,
+          ]],
+          'body' => [[
+            'value' => $payload['nl']['body_html'],
+            'format' => self::TEXT_FORMAT,
+          ]],
+          'field_blog_category' => [['target_id' => (int) $category->id()]],
+        ]);
+      }
       $node->setNewRevision(TRUE);
       $node->setRevisionLogMessage(sprintf(
         'Agency editorial issue #%d payload %s',
@@ -319,6 +340,9 @@ final class AgencyEditorialPublication {
       if (!$reloaded->hasTranslation(self::TRANSLATION_LANGCODE)) {
         throw new RuntimeException('Created Article is missing the EN translation.');
       }
+      if (($payload['schema_version'] ?? NULL) === 2 && !$reloaded->hasTranslation(self::NL_LANGCODE)) {
+        throw new RuntimeException('Created Article is missing the NL translation.');
+      }
 
       return [
         'status' => 'PASS',
@@ -339,19 +363,18 @@ final class AgencyEditorialPublication {
    * Enforces the closed payload schema and conservative text contract.
    */
   public function validatePayload(array $payload, int $issueNumber): void {
-    $this->assertExactKeys($payload, [
-      'schema_version',
-      'issue_number',
-      'bundle',
-      'published',
-      'category',
-      'fr',
-      'en',
-    ], 'payload');
-
-    if (($payload['schema_version'] ?? NULL) !== 1) {
-      throw new InvalidArgumentException('schema_version must be 1.');
+    $version = $payload['schema_version'] ?? NULL;
+    if (!in_array($version, [1, 2], TRUE)) {
+      throw new InvalidArgumentException('schema_version must be 1 or 2.');
     }
+    if ($issueNumber >= 1595 && $version !== 2) {
+      throw new InvalidArgumentException('New Articles require schema_version 2 with NL.');
+    }
+    $keys = ['schema_version', 'issue_number', 'bundle', 'published', 'category', 'fr', 'en'];
+    if ($version === 2) {
+      $keys[] = 'nl';
+    }
+    $this->assertExactKeys($payload, $keys, 'payload');
     if (($payload['issue_number'] ?? NULL) !== $issueNumber) {
       throw new InvalidArgumentException('Payload issue_number mismatch.');
     }
@@ -371,7 +394,11 @@ final class AgencyEditorialPublication {
     }
     $this->assertPlainText($payload['category']['name'], 'category.name', 255);
 
-    foreach ([self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE] as $langcode) {
+    $languages = [self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE];
+    if ($version === 2) {
+      $languages[] = self::NL_LANGCODE;
+    }
+    foreach ($languages as $langcode) {
       if (!is_array($payload[$langcode] ?? NULL)) {
         throw new InvalidArgumentException("$langcode must be an object.");
       }
@@ -455,6 +482,11 @@ final class AgencyEditorialPublication {
       if (!$mapped->hasTranslation(self::TRANSLATION_LANGCODE)) {
         throw new RuntimeException('Mapped Article no longer has the required EN translation.');
       }
+      if (($payload['schema_version'] ?? NULL) === 2
+        && (!$mapped->hasTranslation(self::NL_LANGCODE)
+          || $mapped->getTranslation(self::NL_LANGCODE)->label() !== $payload['nl']['title'])) {
+        throw new RuntimeException('Mapped Article no longer matches the required NL translation.');
+      }
       return ['verdict' => 'IDEMPOTENT', 'node_id' => $mappedId];
     }
 
@@ -479,7 +511,7 @@ final class AgencyEditorialPublication {
     $this->aliasManager->cacheClear($source);
     $en = $node->getTranslation(self::TRANSLATION_LANGCODE);
 
-    return [
+    $result = [
       'id' => (int) $node->id(),
       'uuid' => $node->uuid(),
       'revision_id' => (int) $node->getRevisionId(),
@@ -492,6 +524,11 @@ final class AgencyEditorialPublication {
         'en' => $this->aliasManager->getAliasByPath($source, self::TRANSLATION_LANGCODE),
       ],
     ];
+    if ($node->hasTranslation(self::NL_LANGCODE)) {
+      $result['title_nl'] = $node->getTranslation(self::NL_LANGCODE)->label();
+      $result['aliases']['nl'] = $this->aliasManager->getAliasByPath($source, self::NL_LANGCODE);
+    }
+    return $result;
   }
 
   private function categoryResult(TermInterface $term): array {

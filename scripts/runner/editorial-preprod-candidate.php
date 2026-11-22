@@ -24,6 +24,7 @@ final class AgencyEditorialPreprodCandidate {
   private const STATE_PREFIX = 'agency_editorial.issue.';
   private const SOURCE_LANGCODE = 'fr';
   private const TRANSLATION_LANGCODE = 'en';
+  private const NL_LANGCODE = 'nl';
   private const TEXT_FORMAT = 'basic_html';
   private const CATEGORY_VOCABULARY = 'blog_categories';
   private const AUTHOR_UID = 1;
@@ -245,6 +246,38 @@ final class AgencyEditorialPreprodCandidate {
           'field_blog_category' => [['target_id' => (int) $category->id()]],
           'status' => $payload['published'],
         ]);
+      }
+
+      if (($payload['schema_version'] ?? NULL) === 2) {
+        if ($node->hasTranslation(self::NL_LANGCODE)) {
+          $nl = $node->getTranslation(self::NL_LANGCODE);
+          $nl->setTitle($payload['nl']['title']);
+          $nl->set('field_short_description', [[
+            'value' => $payload['nl']['short_description'],
+            'format' => self::TEXT_FORMAT,
+          ]]);
+          $nl->set('body', [[
+            'value' => $payload['nl']['body_html'],
+            'format' => self::TEXT_FORMAT,
+          ]]);
+          $nl->set('field_blog_category', [['target_id' => (int) $category->id()]]);
+          $nl->set('status', $payload['published']);
+        }
+        else {
+          $node->addTranslation(self::NL_LANGCODE, [
+            'title' => $payload['nl']['title'],
+            'field_short_description' => [[
+              'value' => $payload['nl']['short_description'],
+              'format' => self::TEXT_FORMAT,
+            ]],
+            'body' => [[
+              'value' => $payload['nl']['body_html'],
+              'format' => self::TEXT_FORMAT,
+            ]],
+            'field_blog_category' => [['target_id' => (int) $category->id()]],
+            'status' => $payload['published'],
+          ]);
+        }
       }
 
       $node->setNewRevision(TRUE);

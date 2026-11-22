@@ -8,6 +8,13 @@ Feature-image primitive: #584
 
 ## Durable policy
 
+Pour les nouveaux candidats Article schema_version=2, la promotion impose une
+parité FR/NL/EN (trois traductions Drupal, même image WebP et ALT distincts,
+URL NL PREPROD dans le GO humain exact). Le schéma historique V1 FR/EN reste
+valide uniquement pour les candidats déjà établis ; aucune conversion ni
+publication implicite de leurs contenus NL existants n'est autorisée.
+
+
 Agency ordinary editorial content is editor-owned in Drupal and remains outside
 Content Sync / Governed Content. GitHub is the governed candidate, authority and
 audit surface; Drupal becomes the public editorial source of truth only after an

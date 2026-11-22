@@ -48,13 +48,16 @@ final class EditorialPathautoFinalizer {
    * @return array<string, mixed>
    *   Structured alias-finalization evidence.
    */
-  public function inspect(int $issueNumber, string $payloadSha): array {
+  public function inspect(int $issueNumber, string $payloadSha, bool $includeNl = FALSE): array {
     $node = $this->loadMappedNode($issueNumber, $payloadSha);
-    $aliases = $this->aliases($node);
+    if ($includeNl && !$node->hasTranslation('nl')) {
+      throw new \RuntimeException('Required NL translation is missing for Pathauto.');
+    }
+    $aliases = $this->aliases($node, $includeNl);
     $source = '/node/' . $node->id();
     $needsRepair = [];
 
-    foreach ([self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE] as $langcode) {
+    foreach (array_keys($aliases) as $langcode) {
       $alias = $aliases[$langcode];
       if ($alias === $source || !str_starts_with($alias, self::ALIAS_PREFIX)) {
         $needsRepair[] = $langcode;
@@ -78,8 +81,8 @@ final class EditorialPathautoFinalizer {
    * @return array<string, mixed>
    *   Structured alias-finalization evidence.
    */
-  public function apply(int $issueNumber, string $payloadSha): array {
-    $before = $this->inspect($issueNumber, $payloadSha);
+  public function apply(int $issueNumber, string $payloadSha, bool $includeNl = FALSE): array {
+    $before = $this->inspect($issueNumber, $payloadSha, $includeNl);
     if ($before['verdict'] === 'IDEMPOTENT') {
       $before['mode'] = 'apply';
       return $before;
@@ -103,7 +106,7 @@ final class EditorialPathautoFinalizer {
       throw new \RuntimeException('Pathauto alias repair unexpectedly created a node revision.');
     }
 
-    $after = $this->inspect($issueNumber, $payloadSha);
+    $after = $this->inspect($issueNumber, $payloadSha, $includeNl);
     if ($after['verdict'] !== 'IDEMPOTENT') {
       throw new \RuntimeException('Pathauto alias repair did not converge for FR and EN.');
     }
@@ -149,20 +152,19 @@ final class EditorialPathautoFinalizer {
    * @return array<string, string>
    *   Aliases keyed by language code.
    */
-  private function aliases(NodeInterface $node): array {
+  private function aliases(NodeInterface $node, bool $includeNl = FALSE): array {
     $source = '/node/' . $node->id();
     $this->aliasManager->cacheClear($source);
 
-    return [
-      self::SOURCE_LANGCODE => $this->aliasManager->getAliasByPath(
-        $source,
-        self::SOURCE_LANGCODE,
-      ),
-      self::TRANSLATION_LANGCODE => $this->aliasManager->getAliasByPath(
-        $source,
-        self::TRANSLATION_LANGCODE,
-      ),
-    ];
+    $languages = [self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE];
+    if ($includeNl) {
+      $languages[] = 'nl';
+    }
+    $aliases = [];
+    foreach ($languages as $langcode) {
+      $aliases[$langcode] = $this->aliasManager->getAliasByPath($source, $langcode);
+    }
+    return $aliases;
   }
 
   /**
@@ -177,7 +179,7 @@ final class EditorialPathautoFinalizer {
    *   Node evidence without editorial mutation.
    */
   private function nodeResult(NodeInterface $node, array $aliases): array {
-    return [
+    $result = [
       'id' => (int) $node->id(),
       'uuid' => $node->uuid(),
       'revision_id' => (int) $node->getRevisionId(),
@@ -187,6 +189,10 @@ final class EditorialPathautoFinalizer {
       'category_tid' => (int) $node->get('field_blog_category')->target_id,
       'aliases' => $aliases,
     ];
+    if (array_key_exists('nl', $aliases)) {
+      $result['title_nl'] = $node->getTranslation('nl')->label();
+    }
+    return $result;
   }
 
 }

@@ -146,6 +146,82 @@ class NativeImageManifestTest(unittest.TestCase):
         self.comments.pop()  # preflight before PROD dry-run can still validate direct GO
         self.assertEqual(self.validate()["verdict"], "AUTHORIZED")
 
+    def test_v2_owner_payload_three_languages_and_exact_human_go(self):
+        self.payload["schema_version"] = 2
+        self.payload["nl"] = {
+            "title": "NL", "short_description": "Samenvatting",
+            "body_html": "<p>Hallo</p>",
+        }
+        self.payload_sha = NATIVE["digest"](self.payload)
+        self.manifest["payload_sha256"] = self.payload_sha
+        self.manifest["alt"]["nl"] = "Nederlandse afbeelding"
+        self.fixture_approval()
+        owner = self.comments[3]
+        owner["body"] = owner["body"].replace(
+            "ALT_FR_EN = APPROVED", "ALT_FR_NL_EN = APPROVED"
+        ) + f"- NL: {Q}https://preprod.emergingdigital.be/nl/blog/test{Q}\n"
+        self.assertEqual(self.validate()["verdict"], "AUTHORIZED")
+        self.assertIn("nl_url", self.validate())
+
+        approved = owner["body"]
+        owner["body"] = approved.replace(
+            f"- NL: {Q}https://preprod.emergingdigital.be/nl/blog/test{Q}\n", ""
+        )
+        with self.assertRaises(Exception):
+            self.validate()
+        owner["body"] = approved.replace("ALT_FR_NL_EN = APPROVED", "ALT_FR_EN = APPROVED")
+        with self.assertRaises(Exception):
+            self.validate()
+
+        owner["body"] = approved
+        comment_path = self.base / "v2-comments.b64"
+        comment_path.write_text("\n".join(
+            base64.b64encode(json.dumps(c).encode("utf-8")).decode("ascii")
+            for c in self.comments
+        ), encoding="utf-8")
+        self.assertEqual(NATIVE["owner_payload"](comment_path, ISSUE, MAIN)[2], self.payload_sha)
+        broken = copy.deepcopy(self.comments)
+        del broken[0]["body"]
+        bad_path = self.base / "missing-v2-payload.b64"
+        bad_path.write_text("\n".join(
+            base64.b64encode(json.dumps(c).encode("utf-8")).decode("ascii")
+            for c in broken
+        ), encoding="utf-8")
+        with self.assertRaises(Exception):
+            NATIVE["owner_payload"](bad_path, ISSUE, MAIN)
+
+    def test_v2_rejects_exact_fr_en_only_image_and_owner_go(self):
+        # Even a correctly hashed FR/EN image/GO cannot authorize a V2 payload.
+        self.payload["schema_version"] = 2
+        self.payload["nl"] = {
+            "title": "NL", "short_description": "Samenvatting",
+            "body_html": "<p>Hallo</p>",
+        }
+        self.payload_sha = NATIVE["digest"](self.payload)
+        self.manifest["payload_sha256"] = self.payload_sha
+        self.fixture_approval()
+        with self.assertRaises(PROMOTION["ApprovalError"]):
+            self.validate()
+
+    def test_new_article_snapshot_requires_nl_alt(self):
+        issue = 1596
+        self.manifest["issue_number"] = issue
+        self.manifest["candidate_id"] = f"agency-article-{issue}"
+        with self.assertRaises(NATIVE["NativeImageError"]):
+            NATIVE["validate_snapshot"](
+                self.manifest, WEBP, issue, 100, self.payload_sha, MAIN
+            )
+
+    def test_v2_manifest_requires_all_three_plain_text_alts(self):
+        self.manifest["alt"]["nl"] = "Nederlandse afbeelding"
+        self.snapshot()
+        for invalid in ("", "<img>", "Spatie\nnieuw"):
+            with self.subTest(value=invalid):
+                bad = copy.deepcopy(self.manifest)
+                bad["alt"]["nl"] = invalid
+                with self.assertRaises(Exception):
+                    self.snapshot(bad)
+
     def test_wrong_issue_uuid_fid_article_hash_and_image_hash(self):
         for key, replacement in (
             ("issue_number", 1543), ("node_uuid", "not-a-uuid"),
@@ -308,7 +384,7 @@ class NativeImageManifestTest(unittest.TestCase):
         """Enforce FR then EN, and title/summary/body/category within each."""
         source = (ROOT / "runner/editorial-native-image-source.php").read_text(encoding="utf-8")
         start = source.index("  foreach (['fr' => $node, 'en' => $en] as $lang => $translation) {")
-        end = source.index("  $frImage =", start)
+        end = source.index("  if ($isTrilingual) {", start)
         guard = source[start:end]
         comparisons = (
             "$translation->label() !== ($payload[$lang]['title'] ?? NULL)",

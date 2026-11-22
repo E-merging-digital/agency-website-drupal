@@ -233,9 +233,16 @@ jobs:
           if not candidates:
               raise SystemExit('No valid owner-authored agency editorial payload was found.')
           payload_comment, payload = candidates[-1]
+          version = payload.get('schema_version')
+          if version not in (1, 2):
+              raise SystemExit('Editorial payload schema_version is invalid.')
+          if issue_number >= 1595 and version != 2:
+              raise SystemExit('New Articles require NL in schema_version 2.')
+          if version == 2:
+              expected_top.add('nl')
           if set(payload) != expected_top:
               raise SystemExit(f'Editorial payload keys must be exactly {sorted(expected_top)}.')
-          if payload.get('schema_version') != 1 or payload.get('issue_number') != issue_number:
+          if payload.get('issue_number') != issue_number:
               raise SystemExit('Editorial payload identity is invalid.')
           if payload.get('bundle') != 'article':
               raise SystemExit('Only bundle=article is allowed.')
@@ -243,7 +250,8 @@ jobs:
               raise SystemExit('published must be boolean.')
           if not isinstance(payload.get('category'), dict) or set(payload['category']) != expected_category:
               raise SystemExit('category must contain exactly tid and name.')
-          for lang in ('fr', 'en'):
+          languages = ('fr', 'en', 'nl') if version == 2 else ('fr', 'en')
+          for lang in languages:
               value = payload.get(lang)
               if not isinstance(value, dict) or set(value) != expected_lang:
                   raise SystemExit(f'{lang} must contain exactly {sorted(expected_lang)}.')

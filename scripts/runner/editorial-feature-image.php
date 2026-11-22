@@ -160,6 +160,12 @@ final class AgencyEditorialFeatureImage {
         'target_id' => $fid,
         'alt' => $profile['alt']['en'],
       ]]);
+      if (array_key_exists('nl', $profile['alt'])) {
+        $node->getTranslation('nl')->set(self::FIELD_NAME, [[
+          'target_id' => $fid,
+          'alt' => $profile['alt']['nl'],
+        ]]);
+      }
 
       $node->setNewRevision(TRUE);
       $node->setRevisionUserId(self::AUTHOR_UID);
@@ -310,8 +316,12 @@ final class AgencyEditorialFeatureImage {
     if (!is_array($profile['alt'] ?? NULL)) {
       throw new InvalidArgumentException('alt must be an object.');
     }
-    $this->assertExactKeys($profile['alt'], ['fr', 'en'], 'alt');
-    foreach ([self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE] as $langcode) {
+    $languages = ['fr', 'en'];
+    if (array_key_exists('nl', $profile['alt'])) {
+      $languages[] = 'nl';
+    }
+    $this->assertExactKeys($profile['alt'], $languages, 'alt');
+    foreach ($languages as $langcode) {
       $this->assertPlainTextAlt($profile['alt'][$langcode] ?? NULL, "alt.$langcode");
     }
 
@@ -385,6 +395,9 @@ final class AgencyEditorialFeatureImage {
     if (!$node->hasTranslation(self::TRANSLATION_LANGCODE)) {
       throw new RuntimeException('Feature image route requires the EN translation.');
     }
+    if (array_key_exists('nl', $profile['alt']) && !$node->hasTranslation('nl')) {
+      throw new RuntimeException('Feature image route requires the NL translation.');
+    }
     return $node;
   }
 
@@ -401,8 +414,17 @@ final class AgencyEditorialFeatureImage {
       ->first();
     $frFid = $frItem?->get('target_id')->getValue();
     $enFid = $enItem?->get('target_id')->getValue();
+    $hasNl = array_key_exists('nl', $profile['alt']);
+    $nlItem = $hasNl ? $node->getTranslation('nl')->get(self::FIELD_NAME)->first() : NULL;
+    $nlFid = $nlItem?->get('target_id')->getValue();
+    if ($hasNl && $nlFid !== NULL && $frFid !== NULL && (int) $nlFid !== (int) $frFid) {
+      throw new RuntimeException('NL feature-image File ID must match FR.');
+    }
 
     if ($frFid === NULL && $enFid === NULL) {
+      if ($hasNl && $nlFid !== NULL) {
+        throw new RuntimeException('NL feature image diverges from empty FR/EN.');
+      }
       if (($profile['issue_number'] ?? NULL) === 1404 && !$governedProdPromotion) {
         throw new RuntimeException('Issue #1404 requires two existing image references.');
       }
@@ -459,9 +481,11 @@ final class AgencyEditorialFeatureImage {
     $hash = hash_file('sha256', $uri);
     $altFr = (string) ($frItem?->get('alt')->getValue() ?? '');
     $altEn = (string) ($enItem?->get('alt')->getValue() ?? '');
+    $altNl = (string) ($nlItem?->get('alt')->getValue() ?? '');
     if (($profile['issue_number'] ?? NULL) !== 1404) {
       $altFr = trim($altFr);
       $altEn = trim($altEn);
+      $altNl = trim($altNl);
     }
 
     if (!is_string($hash) || !hash_equals($profile['asset']['sha256'], $hash)) {
@@ -487,7 +511,8 @@ final class AgencyEditorialFeatureImage {
       throw new RuntimeException('Article already has a different feature image asset.');
     }
     $altsMatch = hash_equals($profile['alt']['fr'], $altFr)
-      && hash_equals($profile['alt']['en'], $altEn);
+      && hash_equals($profile['alt']['en'], $altEn)
+      && (!$hasNl || ($nlFid !== NULL && hash_equals($profile['alt']['nl'], $altNl)));
     if (($profile['issue_number'] ?? NULL) === 1404 && !$altsMatch) {
       throw new RuntimeException('Issue #1404 image ALT does not match the approved FR/EN profile.');
     }
@@ -500,6 +525,7 @@ final class AgencyEditorialFeatureImage {
       'sha256' => $hash,
       'alt_fr' => $altFr,
       'alt_en' => $altEn,
+      'alt_nl' => $hasNl ? $altNl : NULL,
     ];
   }
 
@@ -622,6 +648,7 @@ final class AgencyEditorialFeatureImage {
         'sha256' => $classification['sha256'],
         'alt_fr' => $classification['alt_fr'],
         'alt_en' => $classification['alt_en'],
+        'alt_nl' => $classification['alt_nl'] ?? NULL,
       ],
     ];
   }

@@ -62,15 +62,21 @@ def owner_payload(comments_b64: Path, issue: int, trusted_main: str | None = Non
     if latest is None:
         raise NativeImageError("No owner-authored Article candidate.")
     comment, payload = latest
+    version = payload.get("schema_version")
+    if version not in (1, 2):
+        raise NativeImageError("Article payload schema_version must be 1 or 2.")
     required = {"schema_version", "issue_number", "bundle", "published", "category", "fr", "en"}
-    if (set(payload) != required or payload["schema_version"] != 1
+    if version == 2:
+        required.add("nl")
+    if (set(payload) != required
             or payload["issue_number"] != issue or payload["bundle"] != "article"
             or not isinstance(payload["published"], bool)):
         raise NativeImageError("Article payload identity/schema mismatch.")
     if (not isinstance(payload["category"], dict)
             or set(payload["category"]) != {"tid", "name"}):
         raise NativeImageError("Article category schema mismatch.")
-    for language in ("fr", "en"):
+    languages = ("fr", "en", "nl") if version == 2 else ("fr", "en")
+    for language in languages:
         if not isinstance(payload[language], dict) or set(payload[language]) != {
             "title", "short_description", "body_html"
         }:
@@ -151,10 +157,10 @@ def validate_snapshot(manifest: dict, asset: bytes, issue: int, revision: int,
             manifest["width"] > 2400 or manifest["height"] > 1600 or
             manifest["bytes"] > MAX_BYTES or len(asset) != manifest["bytes"]):
         raise NativeImageError("WebP MIME, filename, size or dimensions not allowed.")
-    if not isinstance(manifest["alt"], dict) or set(manifest["alt"]) != {"fr", "en"}:
-        raise NativeImageError("FR/EN ALT identity missing.")
-    if not all(plain_alt(manifest["alt"][lang]) for lang in ("fr", "en")):
-        raise NativeImageError("FR/EN ALT must be bounded plain text.")
+    if not isinstance(manifest["alt"], dict) or set(manifest["alt"]) not in ({"fr", "en"}, {"fr", "en", "nl"}):
+        raise NativeImageError("Editorial ALT language identity missing.")
+    if not all(plain_alt(manifest["alt"][lang]) for lang in manifest["alt"]):
+        raise NativeImageError("Editorial ALT must be bounded plain text.")
     if (not SHA.fullmatch(str(manifest["asset_sha256"])) or
             not hashlib.sha256(asset).hexdigest() == manifest["asset_sha256"]):
         raise NativeImageError("Image bytes are stale or untrusted.")

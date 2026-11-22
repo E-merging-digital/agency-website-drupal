@@ -103,6 +103,14 @@ try {
     throw new RuntimeException('PREPROD mapped Article/translation is invalid.');
   }
   $en = $node->getTranslation('en');
+  $isTrilingual = ($payload['schema_version'] ?? NULL) === 2;
+  $nl = NULL;
+  if ($isTrilingual) {
+    if (!$node->hasTranslation('nl')) {
+      throw new RuntimeException('PREPROD mapped Article is missing NL.');
+    }
+    $nl = $node->getTranslation('nl');
+  }
   foreach (['fr' => $node, 'en' => $en] as $lang => $translation) {
     if ($translation->label() !== ($payload[$lang]['title'] ?? NULL)) {
       throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_TITLE drift.' : 'PREPROD Article EN_TITLE drift.');
@@ -117,10 +125,23 @@ try {
       throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_CATEGORY drift.' : 'PREPROD Article EN_CATEGORY drift.');
     }
   }
+  if ($isTrilingual) {
+    if ($nl->label() !== ($payload['nl']['title'] ?? NULL)
+      || (string) $nl->get('field_short_description')->value !== ($payload['nl']['short_description'] ?? NULL)
+      || !$sameBody((string) $nl->get('body')->value, (string) ($payload['nl']['body_html'] ?? ''))
+      || (int) $nl->get('field_blog_category')->target_id !== (int) ($payload['category']['tid'] ?? 0)) {
+      throw new RuntimeException('PREPROD Article NL text/category drift.');
+    }
+  }
   $frImage = $node->get('field_feature_image')->first();
   $enImage = $en->get('field_feature_image')->first();
   $frFid = $frImage?->get('target_id')->getValue();
   $enFid = $enImage?->get('target_id')->getValue();
+  $nlImage = $isTrilingual ? $nl->get('field_feature_image')->first() : NULL;
+  $nlFid = $nlImage?->get('target_id')->getValue();
+  if ($isTrilingual && ($nlFid === NULL || (int) $nlFid <= 0 || (int) $nlFid !== (int) $frFid)) {
+    throw new RuntimeException('PREPROD NL image must reuse the same File ID.');
+  }
   if ($frFid === NULL || $enFid === NULL || (int) $frFid <= 0 || (int) $enFid <= 0) {
     throw new RuntimeException('PREPROD image File ID must be identical in FR and EN.');
   }
@@ -162,7 +183,8 @@ try {
   }
   $altFr = $frImage?->get('alt')->getValue();
   $altEn = $enImage?->get('alt')->getValue();
-  foreach ([$altFr, $altEn] as $alt) {
+  $altNl = $nlImage?->get('alt')->getValue();
+  foreach ($isTrilingual ? [$altFr, $altEn, $altNl] : [$altFr, $altEn] as $alt) {
     if (!is_string($alt) || trim($alt) !== $alt || $alt === ''
       || mb_strlen($alt) > 300 || strip_tags($alt) !== $alt
       || preg_match('/[\x00-\x1f\x7f]/u', $alt)) {
@@ -206,6 +228,11 @@ try {
     || (int) $fresh->getTranslation('en')->get('field_feature_image')->target_id !== (int) $enFid
     || (string) $fresh->get('field_feature_image')->alt !== $altFr
     || (string) $fresh->getTranslation('en')->get('field_feature_image')->alt !== $altEn
+    || ($isTrilingual && (
+      !$fresh->hasTranslation('nl')
+      || (int) $fresh->getTranslation('nl')->get('field_feature_image')->target_id !== (int) $nlFid
+      || (string) $fresh->getTranslation('nl')->get('field_feature_image')->alt !== $altNl
+    ))
     || !hash_equals($assetSha, (string) hash_file('sha256', $uri))
     || !hash_equals($assetSha, (string) hash_file('sha256', $enUri))) {
     throw new RuntimeException('PREPROD source changed during snapshot.');
@@ -229,7 +256,7 @@ try {
     'width' => (int) $info[0],
     'height' => (int) $info[1],
     'bytes' => strlen($bytes),
-    'alt' => ['fr' => $altFr, 'en' => $altEn],
+    'alt' => $isTrilingual ? ['fr' => $altFr, 'en' => $altEn, 'nl' => $altNl] : ['fr' => $altFr, 'en' => $altEn],
   ];
   if (file_put_contents($manifestFile, json_encode($manifest, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . "\n", LOCK_EX) === FALSE) {
     throw new RuntimeException('Could not save metadata-only manifest.');

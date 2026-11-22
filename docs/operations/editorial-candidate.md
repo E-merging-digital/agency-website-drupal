@@ -4,6 +4,27 @@ Status: **SOURCE_IMPLEMENTED / SYNTHETIC PROOF PENDING / REAL PREPROD PROOF PEND
 Owner: #959 under parent capability #872.
 First real consumer after merge: #958.
 
+## V2 — Trois langues par défaut pour les futurs Articles (#1540)
+
+Après activation gouvernée, les **nouveaux** Articles utilisent le même marqueur GitHub
+`<!-- agency-editorial-payload:v1 -->`, mais un JSON fermé `schema_version: 2`
+avec **trois blocs obligatoires** `fr`, `nl` et `en`. Chacun contient
+`title`, `short_description` et `body_html`. Les autres clés, l'encodage
+canonique/hachage et la provenance OWNER restent inchangés ; le V1 FR/EN reste
+admis pour les candidats historiques, notamment #1594 (aucune migration implicite).
+
+Un seul nœud Drupal est créé en PREPROD avec les trois Content Translations,
+les alias Pathauto natifs et un WebP commun aux **trois ALT localisés**.
+La lecture du média refuse une traduction NL manquante, divergente ou sans ALT.
+Le GO propriétaire direct et non édité doit préciser l'URL NL réelle ainsi que
+les URL FR/EN, et contenir `ALT_FR_NL_EN = APPROVED` pour un candidat V2.
+Le validateur refuse toute URL NL ou ALT NL manquants : pas de promotion
+FR/EN partielle pour un candidat V2.
+
+**Important :** le présent contrat ne publie pas automatiquement l'ancien n°4
+(#1594), les neuf traductions approuvées de #1417 ou l'article historique nid40
+soumis à HOLD. Leurs identités et autorisations restent distinctes.
+
 ## Scope
 
 V1 is deliberately Article-only:

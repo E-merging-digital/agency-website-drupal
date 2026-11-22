@@ -88,7 +88,7 @@ final class AgencyEditorialPreprodCandidate {
         );
       }
 
-      $aliases = ['fr' => [], 'en' => [], 'nl' => []];
+      $aliases = ['fr' => [], 'en' => []];
       $pathAliases = $this->entityTypeManager->getStorage('path_alias')
         ->loadByProperties(['path' => '/node/' . $node->id()]);
       foreach ($pathAliases as $pathAlias) {
@@ -107,7 +107,6 @@ final class AgencyEditorialPreprodCandidate {
       foreach ([
         self::SOURCE_LANGCODE,
         self::TRANSLATION_LANGCODE,
-        self::NL_LANGCODE,
       ] as $langcode) {
         $translation = $node->hasTranslation($langcode)
           ? $node->getTranslation($langcode)
@@ -125,7 +124,6 @@ final class AgencyEditorialPreprodCandidate {
         'uuid' => $node->uuid(),
         'fr' => $languages['fr'],
         'en' => $languages['en'],
-        'nl' => $languages['nl'],
         'mapped_to_1522' => $mappedId === (int) $node->id(),
       ];
     }

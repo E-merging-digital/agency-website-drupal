@@ -265,10 +265,13 @@ jobs:
                   payload = parsed
           if payload is None or payload_comment is None:
               raise SystemExit('No valid owner-authored #576 Article payload was found.')
+          version = payload.get('schema_version')
+          if version not in (1, 2):
+              raise SystemExit('schema_version must be 1 or 2.')
+          if version == 2:
+              expected_top.add('nl')
           if set(payload) != expected_top:
               raise SystemExit(f'Editorial payload keys must be exactly {sorted(expected_top)}.')
-          if payload.get('schema_version') != 1:
-              raise SystemExit('schema_version must be 1.')
           if payload.get('issue_number') != issue_number:
               raise SystemExit('Payload issue_number does not match the triggering issue.')
           if payload.get('bundle') != 'article':
@@ -277,7 +280,8 @@ jobs:
               raise SystemExit('published must be boolean.')
           if not isinstance(payload.get('category'), dict) or set(payload['category']) != expected_category:
               raise SystemExit('category must contain exactly tid and name.')
-          for lang in ('fr', 'en'):
+          languages = ('fr', 'en', 'nl') if version == 2 else ('fr', 'en')
+          for lang in languages:
               value = payload.get(lang)
               if not isinstance(value, dict) or set(value) != expected_lang:
                   raise SystemExit(f'{lang} must contain exactly {sorted(expected_lang)}.')

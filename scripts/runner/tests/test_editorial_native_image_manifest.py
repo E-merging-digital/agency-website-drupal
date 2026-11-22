@@ -182,13 +182,18 @@ class NativeImageManifestTest(unittest.TestCase):
         self.assertEqual(NATIVE["owner_payload"](comment_path, ISSUE, MAIN)[2], self.payload_sha)
         broken = copy.deepcopy(self.comments)
         del broken[0]["body"]
+        bad_path = self.base / "missing-v2-payload.b64"
+        bad_path.write_text("\n".join(
+            base64.b64encode(json.dumps(c).encode("utf-8")).decode("ascii")
+            for c in broken
+        ), encoding="utf-8")
         with self.assertRaises(Exception):
-            NATIVE["owner_payload"](self.base / "missing-v2-payload.b64", ISSUE, MAIN)
+            NATIVE["owner_payload"](bad_path, ISSUE, MAIN)
 
     def test_v2_manifest_requires_all_three_plain_text_alts(self):
         self.manifest["alt"]["nl"] = "Nederlandse afbeelding"
         self.snapshot()
-        for invalid in ("", "<img>", "Spatie\\nnieuw"):
+        for invalid in ("", "<img>", "Spatie\nnieuw"):
             with self.subTest(value=invalid):
                 bad = copy.deepcopy(self.manifest)
                 bad["alt"]["nl"] = invalid

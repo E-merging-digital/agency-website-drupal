@@ -159,7 +159,10 @@ def validate_snapshot(manifest: dict, asset: bytes, issue: int, revision: int,
             manifest["width"] > 2400 or manifest["height"] > 1600 or
             manifest["bytes"] > MAX_BYTES or len(asset) != manifest["bytes"]):
         raise NativeImageError("WebP MIME, filename, size or dimensions not allowed.")
-    if not isinstance(manifest["alt"], dict) or set(manifest["alt"]) not in ({"fr", "en"}, {"fr", "en", "nl"}):
+    expected_alts = {"fr", "en", "nl"} if issue >= 1595 else {"fr", "en"}
+    if (not isinstance(manifest["alt"], dict)
+            or (set(manifest["alt"]) != expected_alts if issue >= 1595
+                else set(manifest["alt"]) not in ({"fr", "en"}, {"fr", "en", "nl"}))):
         raise NativeImageError("Editorial ALT language identity missing.")
     if not all(plain_alt(manifest["alt"][lang]) for lang in manifest["alt"]):
         raise NativeImageError("Editorial ALT must be bounded plain text.")

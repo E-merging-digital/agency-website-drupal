@@ -76,6 +76,8 @@ def canonical_profile(
     expected_asset = {"path", "filename", "sha256", "mime", "width", "height", "max_bytes"}
     if set(asset) != expected_asset or set(alt) not in ({"fr", "en"}, {"fr", "en", "nl"}):
         raise ApprovalError("Feature-image asset/ALT keys are not exact.")
+    if issue_number >= 1595 and set(alt) != {"fr", "en", "nl"}:
+        raise ApprovalError("New Article image profile requires FR/NL/EN ALT.")
     expected_mime = "image/jpeg" if issue_number == 1491 else "image/webp" if issue_number == 1404 or issue_number >= 1542 else "image/png"
     if asset.get("mime") != expected_mime:
         raise ApprovalError(f"Feature-image promotion requires {expected_mime} for issue #{issue_number}.")
@@ -268,10 +270,37 @@ def validate_native_article(
     )
     if derived_profile != profile or derived_profile_sha != profile_sha:
         raise ApprovalError("The native WebP profile was not derived from the trusted source.")
+
+    # The immutable owner payload, not the image profile, defines V1 vs V2.
+    marker = "<!-- agency-editorial-payload:v1 -->"
+    candidates = [
+        c for c in comments
+        if c.get("id") == int(args.candidate_revision)
+        and c.get("user", {}).get("login") == OWNER
+        and str(c.get("body") or "").startswith(marker)
+    ]
+    if len(candidates) != 1:
+        raise ApprovalError("Exact owner Article payload comment is missing.")
+    try:
+        candidate = json.loads(candidates[0]["body"][len(marker):].strip())
+    except (ValueError, TypeError) as exc:
+        raise ApprovalError("Exact owner Article payload is invalid.") from exc
+    if (not isinstance(candidate, dict)
+            or type(candidate.get("schema_version")) is not int
+            or candidate["schema_version"] not in (1, 2)
+            or candidate.get("issue_number") != args.issue_number
+            or checker["digest"](candidate) != args.payload_sha256):
+        raise ApprovalError("Owner Article schema/hash does not match the image candidate.")
+    trilingual = candidate["schema_version"] == 2
+    if args.issue_number >= 1595 and not trilingual:
+        raise ApprovalError("New Article requires the V2 trilingual owner payload.")
+    required_alt = {"fr", "en", "nl"} if trilingual else {"fr", "en"}
+    if set(profile["alt"]) != required_alt or set(manifest["alt"]) != required_alt:
+        raise ApprovalError("Article image ALT must match the immutable owner payload languages.")
+
     approval, fields, urls = direct_owner_approval(comments, args.issue_number)
     if approval.get("created_at") != approval.get("updated_at") or not approval.get("created_at"):
         raise ApprovalError("Native Article approval must be a new unedited direct OWNER comment.")
-    trilingual = set(profile["alt"]) == {"fr", "en", "nl"}
     exact = {
         "CANDIDATE_ID": f"agency-article-{args.issue_number}",
         "CANDIDATE_REVISION": args.candidate_revision,

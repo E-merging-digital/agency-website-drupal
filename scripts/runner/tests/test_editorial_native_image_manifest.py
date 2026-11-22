@@ -190,6 +190,28 @@ class NativeImageManifestTest(unittest.TestCase):
         with self.assertRaises(Exception):
             NATIVE["owner_payload"](bad_path, ISSUE, MAIN)
 
+    def test_v2_rejects_exact_fr_en_only_image_and_owner_go(self):
+        # Even a correctly hashed FR/EN image/GO cannot authorize a V2 payload.
+        self.payload["schema_version"] = 2
+        self.payload["nl"] = {
+            "title": "NL", "short_description": "Samenvatting",
+            "body_html": "<p>Hallo</p>",
+        }
+        self.payload_sha = NATIVE["digest"](self.payload)
+        self.manifest["payload_sha256"] = self.payload_sha
+        self.fixture_approval()
+        with self.assertRaises(PROMOTION["ApprovalError"]):
+            self.validate()
+
+    def test_new_article_snapshot_requires_nl_alt(self):
+        issue = 1596
+        self.manifest["issue_number"] = issue
+        self.manifest["candidate_id"] = f"agency-article-{issue}"
+        with self.assertRaises(NATIVE["NativeImageError"]):
+            NATIVE["validate_snapshot"](
+                self.manifest, WEBP, issue, 100, self.payload_sha, MAIN
+            )
+
     def test_v2_manifest_requires_all_three_plain_text_alts(self):
         self.manifest["alt"]["nl"] = "Nederlandse afbeelding"
         self.snapshot()

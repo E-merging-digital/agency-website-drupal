@@ -66,7 +66,7 @@ final class AgencyEditorialPromotion {
 
     $node = $this->loadMappedNode($issueNumber, $payloadSha);
     $this->assertExactContent($node, $payload);
-    $this->assertExactImage($node, $imageProfile);
+    $this->assertExactImage($node, $imageProfile, $payload);
 
     $translations = [self::TRANSLATION_LANGCODE];
     if (($payload['schema_version'] ?? NULL) === 2) {
@@ -126,7 +126,7 @@ final class AgencyEditorialPromotion {
     $this->entityTypeManager->getStorage('node')->resetCache([$nodeId]);
     $reloaded = $this->loadMappedNode($issueNumber, $payloadSha);
     $this->assertExactContent($reloaded, $payload);
-    $this->assertExactImage($reloaded, $imageProfile);
+    $this->assertExactImage($reloaded, $imageProfile, $payload);
     $published = $reloaded->isPublished();
     foreach ($translations as $langcode) {
       $published = $published && $reloaded->hasTranslation($langcode)
@@ -199,14 +199,16 @@ final class AgencyEditorialPromotion {
   /**
    * Refuses publication until the exact governed image and FR/EN ALT exist.
    */
-  private function assertExactImage(NodeInterface $node, array $profile): void {
+  private function assertExactImage(NodeInterface $node, array $profile, array $payload): void {
     if (!$node->hasField(self::IMAGE_FIELD)) {
       throw new RuntimeException('Article has no governed feature-image field.');
     }
     $alt = $profile['alt'] ?? [];
     $languages = array_keys($alt);
     sort($languages);
-    $expected = array_key_exists('nl', $alt) ? ['en', 'fr', 'nl'] : ['en', 'fr'];
+    $expected = ($payload['schema_version'] ?? NULL) === 2
+      ? ['en', 'fr', 'nl']
+      : ['en', 'fr'];
     if ($languages !== $expected) {
       throw new RuntimeException('Article promotion image language contract is invalid.');
     }

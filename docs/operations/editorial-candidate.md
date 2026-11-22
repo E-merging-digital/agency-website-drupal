@@ -6,7 +6,8 @@ First real consumer after merge: #958.
 
 ## V2 — Trois langues par défaut pour les futurs Articles (#1540)
 
-Après activation gouvernée, les **nouveaux** Articles utilisent le même marqueur GitHub
+Après activation gouvernée, les **nouveaux** Articles (issue n° 1595 ou ultérieure)
+doivent utiliser le même marqueur GitHub
 `<!-- agency-editorial-payload:v1 -->`, mais un JSON fermé `schema_version: 2`
 avec **trois blocs obligatoires** `fr`, `nl` et `en`. Chacun contient
 `title`, `short_description` et `body_html`. Les autres clés, l'encodage

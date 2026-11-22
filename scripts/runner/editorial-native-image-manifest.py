@@ -65,6 +65,8 @@ def owner_payload(comments_b64: Path, issue: int, trusted_main: str | None = Non
     version = payload.get("schema_version")
     if version not in (1, 2):
         raise NativeImageError("Article payload schema_version must be 1 or 2.")
+    if issue >= 1595 and version != 2:
+        raise NativeImageError("New Article payload requires NL in schema_version 2.")
     required = {"schema_version", "issue_number", "bundle", "published", "category", "fr", "en"}
     if version == 2:
         required.add("nl")

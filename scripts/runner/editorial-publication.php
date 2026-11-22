@@ -367,6 +367,9 @@ final class AgencyEditorialPublication {
     if (!in_array($version, [1, 2], TRUE)) {
       throw new InvalidArgumentException('schema_version must be 1 or 2.');
     }
+    if ($issueNumber >= 1595 && $version !== 2) {
+      throw new InvalidArgumentException('New Articles require schema_version 2 with NL.');
+    }
     $keys = ['schema_version', 'issue_number', 'bundle', 'published', 'category', 'fr', 'en'];
     if ($version === 2) {
       $keys[] = 'nl';

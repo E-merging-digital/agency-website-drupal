@@ -1,0 +1,12 @@
+diff --git a/src/Plugin/Field/FieldTypeOverride/FileUriItemOverride.php b/src/Plugin/Field/FieldTypeOverride/FileUriItemOverride.php
+--- a/src/Plugin/Field/FieldTypeOverride/FileUriItemOverride.php
++++ b/src/Plugin/Field/FieldTypeOverride/FileUriItemOverride.php
+@@ -31,7 +31,7 @@ class FileUriItemOverride extends FileUriItem {
+       // @see \Drupal\file\Plugin\Field\FieldType\FileItem::defaultStorageSettings()
+       ->addConstraint(UriConstraint::PLUGIN_ID, ['allowReferences' => FALSE])
+       ->addConstraint(UriSchemeConstraint::PLUGIN_ID, [
+-        'allowedSchemes' => ['public'],
++        'allowedSchemes' => ['public', 'translations'],
+       ]);
+     $properties['url']
+       ->setClass(ComputedFileUrlOverride::class)

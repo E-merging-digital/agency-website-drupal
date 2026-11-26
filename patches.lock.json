@@ -1,4 +1,17 @@
 {
-    "_hash": "6142bfcb78f54dfbf5247ae5e463f25bdb8fff1890806e2e45aa81a59c211653",
-    "patches": []
+    "_hash": "840dfc00a6e8a279eb66f21349672b99cf21baa725dad50580d28230268fe128",
+    "patches": {
+        "drupal/canvas": [
+            {
+                "package": "drupal/canvas",
+                "description": "Drupal Canvas #3577155: allow Core Locale translations:// imports (keep public://)",
+                "url": "patches/drupal/canvas/3577155-allow-locale-translations-scheme.patch",
+                "sha256": "7c41475e94b47e603a149631352ea7b453eae56fd0a61470bcbb75fe12870127",
+                "depth": 1,
+                "extra": {
+                    "provenance": "patches-file:patches.json"
+                }
+            }
+        ]
+    }
 }

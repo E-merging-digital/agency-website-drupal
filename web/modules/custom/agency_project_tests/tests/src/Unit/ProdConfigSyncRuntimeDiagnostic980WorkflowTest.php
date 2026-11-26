@@ -567,7 +567,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     }
     self::assertSame('1.0.2', $versions['drupal/config_language_lock'] ?? NULL);
     self::assertSame('1.13.0', $versions['drupal/canvas'] ?? NULL);
-    self::assertSame('11.4.13', $versions['drupal/core'] ?? NULL);
+    self::assertSame('11.4.14', $versions['drupal/core'] ?? NULL);
 
     $requirements = $this->source(
       'web/modules/contrib/config_language_lock/src/Hook/ConfigLanguageLockRequirementsHooks.php',

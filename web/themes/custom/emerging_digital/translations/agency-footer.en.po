@@ -1,0 +1,21 @@
+# Agency footer — targeted native Locale import (#1600).
+msgid ""
+msgstr ""
+"Project-Id-Version: Agency footer\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Adresse"
+msgstr "Address"
+
+msgid "Nom légal"
+msgstr "Legal name"
+
+msgid "Numéro d'entreprise"
+msgstr "Company registration number"
+
+msgid "Company legal details"
+msgstr "Company legal details"
